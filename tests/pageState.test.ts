@@ -13,6 +13,24 @@ test("recognizes a verified train-search destination", () => {
   assert.equal(result.decision, "CONTINUE");
 });
 
+test("recognizes verified train results evidence", () => {
+  const result = detectPageState({
+    ...base,
+    title: "Train Results",
+    visibleText: "Train Number Train Name Availability",
+    trainResultCount: 2,
+    hasTrainResultStructure: true,
+  });
+  assert.equal(result.state, "TRAIN_RESULTS");
+  assert.equal(result.decision, "CONTINUE");
+});
+
+test("recognizes a no-trains result", () => {
+  const result = detectPageState({ ...base, title: "", visibleText: "No trains found for this journey" });
+  assert.equal(result.state, "NO_TRAINS");
+  assert.equal(result.decision, "STOP");
+});
+
 test("returns UNKNOWN when there is insufficient evidence", () => {
   const result = detectPageState({ site: "UNKNOWN", url: "https://example.com/", title: "", visibleText: "" });
   assert.equal(result.state, "UNKNOWN");

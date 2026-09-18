@@ -7,6 +7,7 @@ export type NavigationClassification =
   | "TLS_ERROR"
   | "PROTOCOL_ERROR"
   | "TIMEOUT"
+  | "NAVIGATION_ABORTED"
   | "DNS_ERROR"
   | "BLOCKED_OR_CHALLENGED"
   | "UNEXPECTED_REDIRECT"
@@ -31,6 +32,7 @@ export function classifyNavigationError(error: unknown): NavigationClassificatio
   const normalized = message.toLowerCase();
 
   if (normalized.includes("timeout")) return "TIMEOUT";
+  if (normalized.includes("err_aborted") || normalized.includes("aborted")) return "NAVIGATION_ABORTED";
   if (normalized.includes("err_name_not_resolved") || normalized.includes("enotfound") || normalized.includes("dns")) {
     return "DNS_ERROR";
   }
@@ -57,4 +59,16 @@ export function classifyNavigationResponse(status: number | undefined, redirecte
 
 export function navigationDecision(classification: NavigationClassification): NavigationDecision {
   return classification === "SUCCESS" ? "CONTINUE" : "STOP";
+}
+
+export interface AbortedNavigationRecoveryEvidence {
+  readonly pageOpen: boolean;
+  readonly finalUrlIsOfficialNget: boolean;
+  readonly detectedSiteIsNget: boolean;
+  readonly pageStateIsTrainSearch: boolean;
+  readonly trainSearchControlsVisible: boolean;
+}
+
+export function canRecoverFromAbortedNavigation(evidence: AbortedNavigationRecoveryEvidence): boolean {
+  return Object.values(evidence).every(Boolean);
 }

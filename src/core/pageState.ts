@@ -3,6 +3,9 @@ import type { NavigationDecision } from "./navigation.js";
 
 export type PageState =
   | "TRAIN_SEARCH"
+  | "TRAIN_RESULTS"
+  | "NO_TRAINS"
+  | "SESSION_OR_PAGE_RESET"
   | "LOGIN_VISIBLE"
   | "AUTHENTICATED"
   | "HUMAN_CAPTCHA"
@@ -19,6 +22,8 @@ export interface PageSnapshot {
   readonly url: string;
   readonly title: string;
   readonly visibleText: string;
+  readonly trainResultCount?: number;
+  readonly hasTrainResultStructure?: boolean;
 }
 
 export interface HumanCheckpoint {
@@ -83,6 +88,8 @@ export function detectPageState(snapshot: PageSnapshot): PageStateResult {
   else if (hasAny(text, ["waiting room", "queue position", "please wait in queue"])) state = "QUEUE_OR_WAITING_ROOM";
   else if (hasAny(text, ["access denied", "access restricted", "too many requests", "rate limit"])) state = "ACCESS_RESTRICTED";
   else if (hasAny(text, ["something went wrong", "service unavailable", "irctc error"])) state = "IRCTC_ERROR";
+  else if (hasAny(text, ["no trains found", "no train found", "no trains available", "no results"])) state = "NO_TRAINS";
+  else if (snapshot.hasTrainResultStructure === true && (snapshot.trainResultCount ?? 0) > 0) state = "TRAIN_RESULTS";
   else if (/^\/(nget|eticket)\/train-search\/?$/.test(path)) state = "TRAIN_SEARCH";
   else if (hasAny(text, ["login", "sign in"])) state = "LOGIN_VISIBLE";
   else if (snapshot.site === "NGET" || snapshot.site === "ETICKET") state = "UNEXPECTED_PAGE";
@@ -90,7 +97,7 @@ export function detectPageState(snapshot: PageSnapshot): PageStateResult {
 
   const checkpoint = checkpointFor(state, snapshot.site);
   if (checkpoint !== undefined) return { state, decision: "PAUSE_FOR_HUMAN", checkpoint };
-  if (state === "QUEUE_OR_WAITING_ROOM" || state === "ACCESS_RESTRICTED" || state === "IRCTC_ERROR" || state === "UNEXPECTED_PAGE" || state === "UNKNOWN") {
+  if (state === "QUEUE_OR_WAITING_ROOM" || state === "ACCESS_RESTRICTED" || state === "IRCTC_ERROR" || state === "UNEXPECTED_PAGE" || state === "UNKNOWN" || state === "NO_TRAINS") {
     return { state, decision: "STOP" };
   }
   return { state, decision: "CONTINUE" };
