@@ -4,6 +4,7 @@ import {
   formatJourneyDateForUi,
   isQuota,
   normalizeJourneyDate,
+  stationCodeMatchesText,
   validateTrip,
 } from "../src/core/tripConfig.js";
 
@@ -50,4 +51,12 @@ test("accepts supported quotas and rejects unsupported quota", () => {
   assert.equal(isQuota("TATKAL"), true);
   assert.equal(isQuota("PREMIUM_TATKAL"), true);
   assert.equal(validateTrip({ ...validInput, quota: "LADIES" }).valid, false);
+});
+
+test("matches an exact station code boundary", () => {
+  assert.equal(stationCodeMatchesText("NEW DELHI - NDLS (NEW DELHI)", "NDLS"), true);
+  assert.equal(stationCodeMatchesText("new delhi - ndls", "ndls"), true);
+  assert.equal(stationCodeMatchesText("NDLSX station", "NDLS"), false);
+  assert.equal(stationCodeMatchesText("NEW DELHI", "NDLS"), false);
+  assert.equal(stationCodeMatchesText("", "NDLS"), false);
 });

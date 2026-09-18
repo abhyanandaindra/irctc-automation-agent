@@ -1,5 +1,5 @@
 import type { Page, Locator } from "playwright";
-import { formatJourneyDateForUi, type Quota, type Station, type TripConfig } from "../../core/tripConfig.js";
+import { formatJourneyDateForUi, stationCodeMatchesText, type Quota, type Station, type TripConfig } from "../../core/tripConfig.js";
 import { detectPageState, type PageStateResult } from "../../core/pageState.js";
 import { detectSite } from "../detectSite.js";
 
@@ -59,8 +59,25 @@ export class NgetTrainSearchPage {
   }
 
   public async selectQuota(quota: Quota): Promise<void> {
-    void quota;
-    throw new NgetTrainSearchPageError("NGET quota control structure is not live-verified; quota automation is disabled until observed.");
+    const control = this.quotaControl();
+    const currentValue = (await control.innerText()).replace(/\s+/g, " ").trim();
+    if (currentValue === quota) return;
+
+    await control.click();
+    const option = this.page.getByRole("option", { name: quota, exact: true });
+    if (await option.count() !== 1) {
+      throw new NgetTrainSearchPageError(`Expected exactly one NGET quota option for ${quota}.`);
+    }
+    await option.waitFor({ state: "visible" });
+    await option.click();
+
+    await this.page.waitForFunction(
+      ({ selector, expected }) => {
+        const element = document.querySelector(selector);
+        return element?.textContent?.replace(/\s+/g, " ").trim() === expected;
+      },
+      { selector: "p-dropdown#journeyQuota", expected: quota },
+    );
   }
 
   public async submitSearch(trip: TripConfig): Promise<TrainSearchResult> {
@@ -108,6 +125,10 @@ export class NgetTrainSearchPage {
     return this.page.getByRole("button", { name: "Search Trains", exact: true });
   }
 
+  private quotaControl(): Locator {
+    return this.page.locator("p-dropdown#journeyQuota");
+  }
+
   private async dismissLanguagePromptIfBlocking(): Promise<void> {
     const dialog = this.page.getByRole("dialog");
     if (await dialog.count() === 0 || !(await dialog.first().isVisible().catch(() => false))) return;
@@ -121,10 +142,48 @@ export class NgetTrainSearchPage {
   }
 
   private async fillStation(field: Locator, station: Station, label: string): Promise<void> {
-    void field;
-    void station;
-    void label;
-    throw new NgetTrainSearchPageError("NGET station autocomplete structure is not live-verified; station automation is disabled until observed.");
+    await field.fill("");
+    await field.type(station.code);
+
+    const listboxes = this.page.getByRole("listbox").filter({ visible: true });
+    try {
+      await listboxes.first().waitFor({ state: "visible", timeout: 10_000 });
+    } catch (error: unknown) {
+      throw new NgetTrainSearchPageError(`No visible ${label} station suggestion list appeared.`, { cause: error });
+    }
+    if (await listboxes.count() !== 1) {
+      throw new NgetTrainSearchPageError(`Expected one visible ${label} station suggestion list.`);
+    }
+
+    const listbox = listboxes.first();
+    const options = listbox.getByRole("option");
+    await options.first().waitFor({ state: "visible" });
+
+    const matches: string[] = [];
+    const optionCount = await options.count();
+    for (let index = 0; index < optionCount; index += 1) {
+      const text = (await options.nth(index).innerText()).replace(/\s+/g, " ").trim();
+      if (stationCodeMatchesText(text, station.code)) matches.push(text);
+    }
+
+    if (matches.length !== 1) {
+      throw new NgetTrainSearchPageError(`Expected one exact ${label} station match for ${station.code}; found ${matches.length}.`);
+    }
+
+    const matchedText = matches[0];
+    if (matchedText === undefined) {
+      throw new NgetTrainSearchPageError(`Exact ${label} station match for ${station.code} was not captured.`);
+    }
+    const option = listbox.getByRole("option", { name: matchedText, exact: true });
+    if (await option.count() !== 1) {
+      throw new NgetTrainSearchPageError(`Exact ${label} station option for ${station.code} is not unique.`);
+    }
+    await option.click();
+
+    const acceptedValue = await field.inputValue();
+    if (!stationCodeMatchesText(acceptedValue, station.code)) {
+      throw new NgetTrainSearchPageError(`Selected ${label} station was not accepted as ${station.code}.`);
+    }
   }
 
   private async verifyAcceptedTrip(trip: TripConfig): Promise<void> {

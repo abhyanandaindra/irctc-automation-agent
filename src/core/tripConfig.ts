@@ -26,6 +26,12 @@ export function isQuota(value: string): value is Quota {
   return QUOTAS.includes(value as Quota);
 }
 
+export function stationCodeMatchesText(text: string, code: string): boolean {
+  const normalizedCode = code.trim().toUpperCase();
+  if (normalizedCode === "") return false;
+  return new RegExp(`(^|[^A-Z0-9])${normalizedCode}([^A-Z0-9]|$)`, "i").test(text);
+}
+
 export function normalizeJourneyDate(value: string): string {
   const normalized = value.trim();
   const match = DATE_PATTERN.exec(normalized);
